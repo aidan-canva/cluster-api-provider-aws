@@ -214,6 +214,83 @@ spec:
                           - path
                           type: object
                         type: array
+                      hybrid:
+                        description: |-
+                          Hybrid contains configuration for EKS Hybrid Nodes.
+                          When specified, the NodeadmConfig generates userdata for hybrid node
+                          bootstrapping instead of standard EC2 node bootstrapping.
+                          Hybrid mode is mutually exclusive with EC2-specific options.
+                        properties:
+                          ssm:
+                            description: |-
+                              SSM configures SSM-based authentication for hybrid nodes.
+                              This is required for hybrid node support.
+                            properties:
+                              activationConfig:
+                                description: |-
+                                  ActivationConfig specifies parameters for automatically creating an SSM activation.
+                                  The controller will create the activation and store credentials in a Secret.
+                                  The activation will be deleted when the NodeadmConfig is deleted.
+                                properties:
+                                  expirationDays:
+                                    default: 7
+                                    description: |-
+                                      ExpirationDays is the number of days until the activation expires.
+                                      After expiration, no new nodes can register using this activation,
+                                      but already-registered nodes are unaffected.
+                                      Minimum: 1, Maximum: 30, Default: 7
+                                    format: int32
+                                    maximum: 30
+                                    minimum: 1
+                                    type: integer
+                                  iamRoleARN:
+                                    description: |-
+                                      IAMRoleARN is the ARN of the IAM role that hybrid nodes will assume.
+                                      This role must have the necessary permissions for EKS hybrid nodes
+                                      and trust policy allowing ssm.amazonaws.com to assume it.
+                                      See: https://docs.aws.amazon.com/eks/latest/userguide/hybrid-nodes-creds.html
+                                    pattern: ^arn:aws(-[a-z]+)?:iam::[0-9]{12}:role/.+$
+                                    type: string
+                                  registrationLimit:
+                                    default: 1
+                                    description: |-
+                                      RegistrationLimit is the maximum number of hybrid nodes that can register
+                                      using this activation. Each NodeadmConfig creates its own activation,
+                                      so this typically corresponds to the number of nodes using this config.
+                                      Minimum: 1, Maximum: 1000, Default: 1
+                                    format: int32
+                                    maximum: 1000
+                                    minimum: 1
+                                    type: integer
+                                  tags:
+                                    additionalProperties:
+                                      type: string
+                                    description: |-
+                                      Tags are key-value pairs to apply to the SSM activation.
+                                      These tags help identify and manage activations in the AWS console.
+                                    type: object
+                                required:
+                                - iamRoleARN
+                                type: object
+                              activationRef:
+                                description: |-
+                                  ActivationRef references an existing Secret containing SSM activation credentials.
+                                  The Secret must contain 'activationId' and 'activationCode' keys.
+                                  When specified, the controller will not create or manage SSM activations.
+                                properties:
+                                  name:
+                                    description: |-
+                                      Name is the name of the Secret in the same namespace as the NodeadmConfig.
+                                      The Secret must contain 'activationId' and 'activationCode' keys.
+                                    minLength: 1
+                                    type: string
+                                required:
+                                - name
+                                type: object
+                            type: object
+                        required:
+                        - ssm
+                        type: object
                       kubelet:
                         description: Kubelet contains options for kubelet.
                         properties:
