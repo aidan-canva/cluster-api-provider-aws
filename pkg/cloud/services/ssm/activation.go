@@ -20,15 +20,43 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/aws/smithy-go"
 
 	infrav1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
 )
+
+// roleNameFromARN extracts the role name from an IAM role ARN.
+// ARN resource format: role/[PATH/]ROLE_NAME
+// If the input is not a valid ARN, it's returned as-is (might already be a role name).
+func roleNameFromARN(roleARN string) string {
+	parsed, err := arn.Parse(roleARN)
+	if err != nil {
+		// Not a valid ARN, return as-is (might already be a role name)
+		return roleARN
+	}
+
+	// Resource format is "role/[path/]name" - extract just the name
+	resource := parsed.Resource
+	const rolePrefix = "role/"
+	if !strings.HasPrefix(resource, rolePrefix) {
+		// Not a role ARN, return the original
+		return roleARN
+	}
+
+	rolePath := strings.TrimPrefix(resource, rolePrefix)
+	// Handle paths like "path/to/role-name" - we want just "role-name"
+	if lastSlash := strings.LastIndex(rolePath, "/"); lastSlash != -1 {
+		return rolePath[lastSlash+1:]
+	}
+	return rolePath
+}
 
 const (
 	// TagKeyNodeadmConfig is the tag key for the NodeadmConfig reference.
@@ -127,8 +155,11 @@ func (s *Service) CreateHybridActivation(ctx context.Context, params *HybridActi
 		Value: aws.String("true"),
 	})
 
+	// Extract role name from ARN - CreateActivation expects just the role name, not the full ARN
+	roleName := roleNameFromARN(params.IAMRoleARN)
+
 	input := &ssm.CreateActivationInput{
-		IamRole:           aws.String(params.IAMRoleARN),
+		IamRole:           aws.String(roleName),
 		RegistrationLimit: aws.Int32(params.RegistrationLimit),
 		ExpirationDate:    aws.Time(expirationTime),
 		Tags:              tags,

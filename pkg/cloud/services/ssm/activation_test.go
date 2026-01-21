@@ -91,9 +91,9 @@ func TestCreateHybridActivation(t *testing.T) {
 			expect: func(m *mock_ssmiface.MockSSMAPIMockRecorder) {
 				m.CreateActivation(gomock.Any(), gomock.Any()).DoAndReturn(
 					func(ctx context.Context, input *ssm.CreateActivationInput, optFns ...func(*ssm.Options)) (*ssm.CreateActivationOutput, error) {
-						// Validate input
-						if aws.ToString(input.IamRole) != "arn:aws:iam::123456789012:role/TestRole" {
-							t.Errorf("expected IAM role ARN to be set")
+						// Validate input - IamRole should be the role name, not the full ARN
+						if aws.ToString(input.IamRole) != "TestRole" {
+							t.Errorf("expected IAM role name to be 'TestRole', got %q", aws.ToString(input.IamRole))
 						}
 						if aws.ToInt32(input.RegistrationLimit) != 1 {
 							t.Errorf("expected RegistrationLimit to be 1")
@@ -387,4 +387,61 @@ func TestHybridActivationTagGeneration(t *testing.T) {
 
 	// Verify custom tag
 	g.Expect(tagMap).To(HaveKeyWithValue("custom-tag", "custom-value"))
+}
+
+func TestRoleNameFromARN(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "standard role ARN",
+			input:    "arn:aws:iam::123456789012:role/TestRole",
+			expected: "TestRole",
+		},
+		{
+			name:     "role ARN with path",
+			input:    "arn:aws:iam::123456789012:role/path/to/TestRole",
+			expected: "TestRole",
+		},
+		{
+			name:     "role ARN with single path segment",
+			input:    "arn:aws:iam::123456789012:role/service-role/MyServiceRole",
+			expected: "MyServiceRole",
+		},
+		{
+			name:     "just role name (no ARN)",
+			input:    "TestRole",
+			expected: "TestRole",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "role name with hyphens",
+			input:    "arn:aws:iam::123456789012:role/my-test-role-name",
+			expected: "my-test-role-name",
+		},
+		{
+			name:     "AWS GovCloud ARN",
+			input:    "arn:aws-us-gov:iam::123456789012:role/GovCloudRole",
+			expected: "GovCloudRole",
+		},
+		{
+			name:     "AWS China ARN",
+			input:    "arn:aws-cn:iam::123456789012:role/ChinaRole",
+			expected: "ChinaRole",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			result := roleNameFromARN(tt.input)
+			g.Expect(result).To(Equal(tt.expected))
+		})
+	}
 }

@@ -639,6 +639,8 @@ func (r *NodeadmConfigReconciler) storeActivationSecret(ctx context.Context, clu
 				return errors.Wrap(err, "failed to get existing activation secret")
 			}
 			existing.Data = secret.Data
+			existing.Labels = secret.Labels
+			existing.OwnerReferences = secret.OwnerReferences
 			if err := r.Client.Update(ctx, existing); err != nil {
 				return errors.Wrap(err, "failed to update activation secret")
 			}
